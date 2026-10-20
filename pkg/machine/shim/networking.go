@@ -159,7 +159,8 @@ func removeStaleAPISocket(mc *vmconfigs.MachineConfig, provider vmconfigs.VMProv
 		return err
 	}
 	if err := sock.Delete(); err != nil {
-		// On WSL the API proxy is optional: the podman CLI works without it.
+		// On WSL the socket belongs to win-sshproxy, which only serves the API
+		// (SSH does not go through it), so the machine is usable without it.
 		if provider.VMType() == define.WSLVirt {
 			logrus.Warnf("unable to remove stale API socket %q: %v", sock.GetPath(), err)
 			return nil

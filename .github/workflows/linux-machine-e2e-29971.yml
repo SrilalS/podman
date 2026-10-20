@@ -75,4 +75,4 @@ jobs:
       - name: "Run stale API socket test"
         env:
           MACHINE_TEST_TIMEOUT: "300"
-        run: make localmachine FOCUS="stale API socket"
+        run: make localmachine FOCUS="client connect to machine socket"

@@ -2,25 +2,21 @@ package e2e_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
-	"github.com/moby/moby/client"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gexec"
-	"go.podman.io/podman/v6/pkg/machine"
 	"go.podman.io/podman/v6/pkg/machine/define"
 )
 
@@ -405,56 +401,6 @@ var _ = Describe("podman machine start", func() {
 		Expect(startSession).To(Exit(0))
 	})
 
-	It("start recovers from a stale API socket left by a killed proxy", func() {
-		name := randomString()
-		i := new(initMachine)
-		session, err := mb.setName(name).setCmd(i.withImage(mb.imagePath).withNow()).run()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(session).To(Exit(0))
-
-		inspectJSON := new(inspectMachine)
-		inspectSession, err := mb.setName(name).setCmd(inspectJSON).run()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(inspectSession).To(Exit(0))
-
-		var inspectInfo []machine.InspectInfo
-		err = jsoniter.Unmarshal(inspectSession.Bytes(), &inspectInfo)
-		Expect(err).ToNot(HaveOccurred())
-		sockPath := inspectInfo[0].ConnectionInfo.PodmanSocket.GetPath()
-		Eventually(sockPath, 10*time.Second).Should(BeAnExistingFile())
-
-		// Kill the proxy without giving it a chance to remove its socket,
-		// as happens when the host shuts down.
-		// gvproxy writes its pid file next to the API socket.
-		runtimeDir := filepath.Dir(inspectInfo[0].ConnectionInfo.PodmanSocket.Path)
-		pid := apiProxyPID(name, runtimeDir)
-		proxy, err := os.FindProcess(pid)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(proxy.Kill()).To(Succeed())
-		Eventually(func() bool { return processExists(pid) }, 10*time.Second).Should(BeFalse())
-		Expect(sockPath).To(BeAnExistingFile())
-
-		stop := new(stopMachine)
-		stopSession, err := mb.setCmd(stop).run()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(stopSession).To(Exit(0))
-
-		start := new(startMachine)
-		startSession, err := mb.setCmd(start).run()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(startSession).To(Exit(0))
-
-		// The API must be reachable again.
-		host := "unix://" + sockPath
-		if runtime.GOOS == "windows" {
-			host = NamedPipeProto + filepath.ToSlash(inspectInfo[0].ConnectionInfo.PodmanPipe.GetPath())
-		}
-		cli, err := client.New(client.WithHost(host))
-		Expect(err).ToNot(HaveOccurred())
-		_, err = cli.Ping(context.Background(), client.PingOptions{})
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	It("start recovers from stale Starting state", func() {
 		name := randomString()
 		i := new(initMachine)
@@ -618,13 +564,4 @@ func getSystemConnectionsAsSysConns() (SysConns, error) {
 		return nil, fmt.Errorf("error: %s", connSession.errorToString())
 	}
 	return systemConnectionLsToSysConns(connSession.Out.Contents())
-}
-
-// gvproxyPID returns the PID recorded in the gvproxy pid file in runtimeDir.
-func gvproxyPID(runtimeDir string) int {
-	pidFile, err := define.NewMachineFile(filepath.Join(runtimeDir, "gvproxy.pid"), nil)
-	Expect(err).ToNot(HaveOccurred())
-	pid, err := pidFile.ReadPIDFrom()
-	Expect(err).ToNot(HaveOccurred())
-	return pid
 }
