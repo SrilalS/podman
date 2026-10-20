@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/gomega/gexec"
 	"go.podman.io/podman/v6/pkg/machine"
 	"go.podman.io/podman/v6/pkg/machine/define"
-	"go.podman.io/podman/v6/pkg/machine/env"
 )
 
 var _ = Describe("podman machine start", func() {
@@ -426,7 +425,9 @@ var _ = Describe("podman machine start", func() {
 
 		// Kill the proxy without giving it a chance to remove its socket,
 		// as happens when the host shuts down.
-		pid := apiProxyPID(name)
+		// gvproxy writes its pid file next to the API socket.
+		runtimeDir := filepath.Dir(inspectInfo[0].ConnectionInfo.PodmanSocket.Path)
+		pid := apiProxyPID(name, runtimeDir)
 		proxy, err := os.FindProcess(pid)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(proxy.Kill()).To(Succeed())
@@ -619,11 +620,9 @@ func getSystemConnectionsAsSysConns() (SysConns, error) {
 	return systemConnectionLsToSysConns(connSession.Out.Contents())
 }
 
-// gvproxyPID returns the PID recorded in the gvproxy pid file.
-func gvproxyPID() int {
-	dirs, err := env.GetMachineDirs(testProvider.VMType())
-	Expect(err).ToNot(HaveOccurred())
-	pidFile, err := dirs.RuntimeDir.AppendToNewVMFile("gvproxy.pid", nil)
+// gvproxyPID returns the PID recorded in the gvproxy pid file in runtimeDir.
+func gvproxyPID(runtimeDir string) int {
+	pidFile, err := define.NewMachineFile(filepath.Join(runtimeDir, "gvproxy.pid"), nil)
 	Expect(err).ToNot(HaveOccurred())
 	pid, err := pidFile.ReadPIDFrom()
 	Expect(err).ToNot(HaveOccurred())

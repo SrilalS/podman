@@ -22,8 +22,8 @@ func pgrep(n string) (string, error) {
 }
 
 // apiProxyPID returns the PID of the host proxy serving the machine API.
-func apiProxyPID(_ string) int {
-	return gvproxyPID()
+func apiProxyPID(_, runtimeDir string) int {
+	return gvproxyPID(runtimeDir)
 }
 
 // processExists reports whether pid is running. A killed process that has

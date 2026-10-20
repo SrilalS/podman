@@ -64,9 +64,9 @@ func pgrep(n string) (string, error) {
 
 // apiProxyPID returns the PID of the host proxy serving the machine API:
 // win-sshproxy on WSL (from its tid file), gvproxy otherwise.
-func apiProxyPID(name string) int {
+func apiProxyPID(name, runtimeDir string) int {
 	if testProvider.VMType() != define.WSLVirt {
-		return gvproxyPID()
+		return gvproxyPID(runtimeDir)
 	}
 	stateDir, err := machine.GetWinProxyStateDir(name, define.WSLVirt)
 	Expect(err).ToNot(HaveOccurred())
