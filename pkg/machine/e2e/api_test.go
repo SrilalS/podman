@@ -41,19 +41,14 @@ var _ = Describe("run podman API test calls", func() {
 		Eventually(sockPath, 10*time.Second).Should(BeAnExistingFile())
 
 		checkAPI := func() {
+			// check with docker client
+			host := "unix://" + sockPath
 			if runtime.GOOS == "windows" {
 				// Go docker client doesn't support unix socket on Windows,
-				// check the pipe connection instead
-				pipePath := inspectInfo[0].ConnectionInfo.PodmanPipe.GetPath()
-				cli, err := client.New(client.WithHost(NamedPipeProto + filepath.ToSlash(pipePath)))
-				Expect(err).ToNot(HaveOccurred())
-				_, err = cli.Ping(context.Background(), client.PingOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				return
+				// use the pipe connection instead
+				host = NamedPipeProto + filepath.ToSlash(inspectInfo[0].ConnectionInfo.PodmanPipe.GetPath())
 			}
-
-			// check with docker client
-			cli, err := client.New(client.WithHost("unix://" + sockPath))
+			cli, err := client.New(client.WithHost(host))
 			Expect(err).ToNot(HaveOccurred())
 			_, err = cli.Ping(context.Background(), client.PingOptions{})
 			Expect(err).ToNot(HaveOccurred())
